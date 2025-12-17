@@ -16,7 +16,7 @@ class Character:
                  xp: int) -> None:
         """
         Args:
-            color (int): Character color (not yet implemented).
+            color (int): Character color.
             hp (int): Current health of the character.
             hp_max (int): Maximum health of the character.
             attack (int): Base attack damage the character can inflict.

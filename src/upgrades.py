@@ -164,7 +164,7 @@ class Upgrade:
         self.y += 60
         self.ascii.text(self.x, self.y, self.message, self.color)
 
-    def draw_hp(self, x, y) -> None:
+    def draw_hp(self, x: int, y: int) -> None:
         """
         Method that draws the hp on the window.
 
