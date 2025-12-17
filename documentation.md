@@ -65,7 +65,7 @@ def __init__(color: int, hp: int, hp_max: int, attack: int, speed: int,
 
 **Arguments**:
 
-- `color` _int_ - Character color (not yet implemented).
+- `color` _int_ - Character color.
 - `hp` _int_ - Current health of the character.
 - `hp_max` _int_ - Maximum health of the character.
 - `attack` _int_ - Base attack damage the character can inflict.
@@ -509,7 +509,7 @@ Draw the upgrade menu.
 #### draw\_hp
 
 ```python
-def draw_hp(x, y) -> None
+def draw_hp(x: int, y: int) -> None
 ```
 
 Method that draws the hp on the window.
