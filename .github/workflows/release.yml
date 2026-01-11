@@ -54,11 +54,26 @@ jobs:
         run: |
           pyinstaller --onefile --windowed --add-data "assets;assets" --name Quadratic-Invaders src/main.py
 
-      - name: Upload build artifact
+      - name: Upload Linux artifact
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: Quadratic-Invaders-${{ runner.os }}
-          path: dist/
+          name: Quadratic-Invaders-Linux
+          path: dist/Quadratic-Invaders
+
+      - name: Upload macOS artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quadratic-Invaders-macOS
+          path: dist/Quadratic-Invaders-macOS.app.zip
+
+      - name: Upload Windows artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quadratic-Invaders-Windows
+          path: dist/Quadratic-Invaders.exe
 
   release:
     name: Create draft release
@@ -92,7 +107,7 @@ jobs:
           upload_url="${{ steps.create_release.outputs.upload_url }}"
           upload_url="${upload_url%%\{*}"
 
-          find artifacts -type f | while read file; do
+          find artifacts -type f -maxdepth 3 | while read file; do
             name=$(basename "$file")
             curl -sS -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
