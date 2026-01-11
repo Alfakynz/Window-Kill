@@ -12,7 +12,9 @@ def handle_interrupt(sig, frame) -> None:
     sys.exit(0)
 
 if __name__ == "__main__":
-    print("1. Lancer le jeu")
+    signal.signal(signal.SIGINT, handle_interrupt)
+    main()
+    """print("1. Lancer le jeu")
     print("2. Tester les jeux de test")
     print("3. Faire les jeux de test puis lancer le jeu")
     choice = input("Que voulez vous faire ? (Choisissez le numéro) ")
@@ -30,4 +32,4 @@ if __name__ == "__main__":
             signal.signal(signal.SIGINT, handle_interrupt)
             main()
         case _:
-            print("Le choix n'existe pas")
+            print("Le choix n'existe pas")"""
