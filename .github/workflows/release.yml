@@ -71,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Quadratic-Invaders-macOS
-          path: dist/Quadratic-Invaders-macOS.app.zip
+          path: dist/Quadratic-Invaders.app.zip
 
       - name: Upload Windows artifact
         if: runner.os == 'Windows'
