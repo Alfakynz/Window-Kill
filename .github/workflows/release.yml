@@ -10,21 +10,12 @@ on:
 
 jobs:
   build:
-    name: Build on ${{ matrix.name }}
-    runs-on: ${{ matrix.runner }}
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        include:
-          - name: Linux-x64
-            runner: ubuntu-latest
-            target: linux-x64
-          - name: macOS-universal
-            runner: macos-latest
-            target: macos
-          - name: Windows-x64
-            runner: windows-latest
-            target: windows
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - name: Checkout sources
@@ -41,104 +32,61 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # ---------- LINUX x64 ----------
-      - name: Build Linux x64
-        if: matrix.target == 'linux-x64'
+      - name: Build with PyInstaller (Linux)
+        if: runner.os == 'Linux'
         run: |
-          pyinstaller --onefile --windowed \
-            --add-data "assets:assets" \
-            --name Quadratic-Invaders-linux-x64 \
-            src/main.py
+          pyinstaller --onefile --windowed --add-data "assets:assets" --name Quadratic-Invaders src/main.py
 
-      - name: Upload Linux x64 artifact
-        if: matrix.target == 'linux-x64'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Quadratic-Invaders-Linux-x64
-          path: dist/Quadratic-Invaders-linux-x64
-
-      # ---------- macOS universal ----------
-      - name: Build macOS universal2
-        if: matrix.target == 'macos'
+      - name: Build with PyInstaller (macOS)
+        if: runner.os == 'macOS'
         run: |
-          pyinstaller --onedir --windowed \
-            --target-arch universal2 \
-            --add-data "assets:assets" \
-            --name Quadratic-Invaders \
-            --osx-bundle-identifier com.alfakynz.quadraticinvaders \
-            src/main.py
+          pyinstaller --onedir --windowed --add-data "assets:assets" --name Quadratic-Invaders --osx-bundle-identifier com.quadratic.invaders src/main.py
 
       - name: Ad-hoc sign macOS app
-        if: matrix.target == 'macos'
+        if: runner.os == 'macOS'
         run: |
           codesign --deep --force --sign - dist/Quadratic-Invaders.app
 
-      - name: Zip macOS app
-        if: matrix.target == 'macos'
+      - name: Zip macOS .app bundle
+        if: runner.os == 'macOS'
         run: |
           cd dist
-          zip -r Quadratic-Invaders-macOS-universal.app.zip Quadratic-Invaders.app
+          zip -r Quadratic-Invaders.app.zip Quadratic-Invaders.app
           rm -rf Quadratic-Invaders.app
 
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --onefile --windowed --add-data "assets;assets" --name Quadratic-Invaders src/main.py
+
+      - name: Upload Linux artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quadratic-Invaders-Linux
+          path: dist/Quadratic-Invaders
+
       - name: Upload macOS artifact
-        if: matrix.target == 'macos'
+        if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: Quadratic-Invaders-macOS
-          path: dist/Quadratic-Invaders-macOS-universal.app.zip
-
-      # ---------- WINDOWS ----------
-      - name: Build Windows
-        if: matrix.target == 'windows'
-        run: |
-          pyinstaller --onefile --windowed \
-            --add-data "assets;assets" \
-            --name Quadratic-Invaders-Windows-x64 \
-            src/main.py
+          path: dist/Quadratic-Invaders-macOS.app.zip
 
       - name: Upload Windows artifact
-        if: matrix.target == 'windows'
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: Quadratic-Invaders-Windows-x64
-          path: dist/Quadratic-Invaders-Windows-x64.exe
-
-  build-linux-arm:
-    name: Build Linux ARM64
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Enable QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Build Linux ARM64 binary
-        run: |
-          docker run --rm -v "$PWD:/app" arm64v8/python:3.13-slim bash -c "
-            apt-get update &&
-            apt-get install -y gcc python3-dev zip &&
-            pip install pyinstaller -r /app/requirements.txt &&
-            cd /app &&
-            pyinstaller --onefile --windowed \
-              --add-data 'assets:assets' \
-              --name Quadratic-Invaders-linux-arm64 \
-              src/main.py
-          "
-
-      - name: Upload Linux ARM64 artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Quadratic-Invaders-Linux-arm64
-          path: dist/Quadratic-Invaders-linux-arm64
+          name: Quadratic-Invaders-Windows
+          path: dist/Quadratic-Invaders.exe
 
   release:
     name: Create draft release
     runs-on: ubuntu-latest
-    needs: [build, build-linux-arm]
+    needs: build
 
     steps:
-      - name: Download artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -153,16 +101,18 @@ jobs:
           release_name: "Quadratic Invaders ${{ github.ref_name }}"
           draft: true
           prerelease: false
+          body: "-"
 
       - name: Upload files to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
+          set -euo pipefail
+
           upload_url="${{ steps.create_release.outputs.upload_url }}"
           upload_url="${upload_url%%\{*}"
 
-          find artifacts -type f | while read file; do
+          find artifacts -type f -maxdepth 3 | while read file; do
             name=$(basename "$file")
             curl -sS -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
