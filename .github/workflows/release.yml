@@ -9,7 +9,7 @@ on:
       - "v*"
 
 jobs:
-  build-release:
+  build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
@@ -40,16 +40,32 @@ jobs:
       - name: Build with PyInstaller (macOS)
         if: runner.os == 'macOS'
         run: |
-          pyinstaller --onedir --windowed --add-data "assets:assets" --name Quadratic-Invaders --osx-bundle-identifier com.alfakynz.quadratic-invaders src/main.py
+          pyinstaller --onedir --windowed --add-data "assets:assets" --name Quadratic-Invaders --osx-bundle-identifier com.quadratic.invaders src/main.py
 
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
         run: |
           pyinstaller --onefile --windowed --add-data "assets;assets" --name Quadratic-Invaders src/main.py
 
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quadratic-Invaders-${{ runner.os }}
+          path: dist/
+
+  release:
+    name: Create draft release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
       - name: Create draft release
         id: create_release
-        if: runner.os == 'Linux'
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -60,7 +76,7 @@ jobs:
           prerelease: false
           body: "-"
 
-      - name: Upload build to draft release
+      - name: Upload files to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -69,23 +85,11 @@ jobs:
           upload_url="${{ steps.create_release.outputs.upload_url }}"
           upload_url="${upload_url%%\{*}"
 
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            FILE_PATH="dist/Quadratic-Invaders.exe"
-          elif [ "${{ runner.os }}" = "macOS" ]; then
-            FILE_PATH="dist/Quadratic-Invaders"
-          else
-            FILE_PATH="dist/Quadratic-Invaders"
-          fi
-
-          if [ ! -e "$FILE_PATH" ]; then
-            echo "Build output not found: $FILE_PATH"
-            exit 1
-          fi
-
-          NAME="$(basename "$FILE_PATH")-${{ runner.os }}"
-
-          curl -sS -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary @"$FILE_PATH" \
-            "$upload_url?name=$NAME"
+          find artifacts -type f | while read file; do
+            name=$(basename "$file")
+            curl -sS -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$file" \
+              "$upload_url?name=$name"
+          done
