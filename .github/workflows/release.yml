@@ -42,6 +42,13 @@ jobs:
         run: |
           pyinstaller --onedir --windowed --add-data "assets:assets" --name Quadratic-Invaders --osx-bundle-identifier com.quadratic.invaders src/main.py
 
+      - name: Zip macOS .app bundle
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          zip -r Quadratic-Invaders-macOS.app.zip Quadratic-Invaders.app
+          rm -rf Quadratic-Invaders.app
+
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
         run: |
