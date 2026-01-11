@@ -10,12 +10,21 @@ on:
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Build on ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
 
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - name: Linux-x64
+            runner: ubuntu-latest
+            target: linux-x64
+          - name: macOS-universal
+            runner: macos-latest
+            target: macos
+          - name: Windows-x64
+            runner: windows-latest
+            target: windows
 
     steps:
       - name: Checkout sources
@@ -24,7 +33,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13.5"
 
       - name: Install dependencies
         run: |
@@ -32,56 +41,104 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build with PyInstaller (Linux)
-        if: runner.os == 'Linux'
+      # ---------- LINUX x64 ----------
+      - name: Build Linux x64
+        if: matrix.target == 'linux-x64'
         run: |
-          pyinstaller --onefile --windowed --add-data "assets:assets" --name Quadratic-Invaders src/main.py
+          pyinstaller --onefile --windowed \
+            --add-data "assets:assets" \
+            --name Quadratic-Invaders-linux-x64 \
+            src/main.py
 
-      - name: Build with PyInstaller (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          pyinstaller --onedir --windowed --add-data "assets:assets" --name Quadratic-Invaders --osx-bundle-identifier com.quadratic.invaders src/main.py
-
-      - name: Zip macOS .app bundle
-        if: runner.os == 'macOS'
-        run: |
-          cd dist
-          zip -r Quadratic-Invaders-macOS.app.zip Quadratic-Invaders.app
-          rm -rf Quadratic-Invaders.app
-
-      - name: Build with PyInstaller (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          pyinstaller --onefile --windowed --add-data "assets;assets" --name Quadratic-Invaders src/main.py
-
-      - name: Upload Linux artifact
-        if: runner.os == 'Linux'
+      - name: Upload Linux x64 artifact
+        if: matrix.target == 'linux-x64'
         uses: actions/upload-artifact@v4
         with:
-          name: Quadratic-Invaders-Linux
-          path: dist/Quadratic-Invaders
+          name: Quadratic-Invaders-Linux-x64
+          path: dist/Quadratic-Invaders-linux-x64
+
+      # ---------- macOS universal ----------
+      - name: Build macOS universal2
+        if: matrix.target == 'macos'
+        run: |
+          pyinstaller --onedir --windowed \
+            --target-arch universal2 \
+            --add-data "assets:assets" \
+            --name Quadratic-Invaders \
+            --osx-bundle-identifier com.alfakynz.quadraticinvaders \
+            src/main.py
+
+      - name: Ad-hoc sign macOS app
+        if: matrix.target == 'macos'
+        run: |
+          codesign --deep --force --sign - dist/Quadratic-Invaders.app
+
+      - name: Zip macOS app
+        if: matrix.target == 'macos'
+        run: |
+          cd dist
+          zip -r Quadratic-Invaders-macOS-universal.app.zip Quadratic-Invaders.app
+          rm -rf Quadratic-Invaders.app
 
       - name: Upload macOS artifact
-        if: runner.os == 'macOS'
+        if: matrix.target == 'macos'
         uses: actions/upload-artifact@v4
         with:
           name: Quadratic-Invaders-macOS
-          path: dist/Quadratic-Invaders-macOS.app.zip
+          path: dist/Quadratic-Invaders-macOS-universal.app.zip
+
+      # ---------- WINDOWS ----------
+      - name: Build Windows
+        if: matrix.target == 'windows'
+        run: |
+          pyinstaller --onefile --windowed \
+            --add-data "assets;assets" \
+            --name Quadratic-Invaders-Windows-x64 \
+            src/main.py
 
       - name: Upload Windows artifact
-        if: runner.os == 'Windows'
+        if: matrix.target == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: Quadratic-Invaders-Windows
-          path: dist/Quadratic-Invaders.exe
+          name: Quadratic-Invaders-Windows-x64
+          path: dist/Quadratic-Invaders-Windows-x64.exe
+
+  build-linux-arm:
+    name: Build Linux ARM64
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build Linux ARM64 binary
+        run: |
+          docker run --rm -v "$PWD:/app" arm64v8/python:3.13-slim bash -c "
+            apt-get update &&
+            apt-get install -y gcc python3-dev zip &&
+            pip install pyinstaller -r /app/requirements.txt &&
+            cd /app &&
+            pyinstaller --onefile --windowed \
+              --add-data 'assets:assets' \
+              --name Quadratic-Invaders-linux-arm64 \
+              src/main.py
+          "
+
+      - name: Upload Linux ARM64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quadratic-Invaders-Linux-arm64
+          path: dist/Quadratic-Invaders-linux-arm64
 
   release:
     name: Create draft release
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, build-linux-arm]
 
     steps:
-      - name: Download build artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -96,18 +153,16 @@ jobs:
           release_name: "Quadratic Invaders ${{ github.ref_name }}"
           draft: true
           prerelease: false
-          body: "-"
 
       - name: Upload files to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-
+          set -e
           upload_url="${{ steps.create_release.outputs.upload_url }}"
           upload_url="${upload_url%%\{*}"
 
-          find artifacts -type f -maxdepth 3 | while read file; do
+          find artifacts -type f | while read file; do
             name=$(basename "$file")
             curl -sS -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
