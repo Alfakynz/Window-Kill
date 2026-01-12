@@ -37,27 +37,16 @@ class Game:
         BASE_DIR: Path = Path(__file__).resolve().parent
         ASSETS_DIR: Path = BASE_DIR.parent / "assets"
         SRC: Path = ASSETS_DIR / "GameOver.png"
-        DST: Path = ASSETS_DIR / "_GameOver_256.png"
 
         # Fallback if the image doesn't exist
         if not SRC.exists():
             SRC = Path(__file__).resolve().parent / "assets" / "GameOver.png"
-            DST = Path(__file__).resolve().parent / "assets" / "_GameOver_256.png"
 
         # Resizes the GameOver image into a 256x256 format (made by ChatGPT)
         im = PILImage.open(SRC).convert("RGBA")
-        # Uses the newer Resampling enum if available, otherwise falls back to legacy constants
-        resampling = getattr(PILImage, "Resampling", None)
-        if resampling is not None:
-            resample_method = resampling.BICUBIC
-        else:
-            resample_method = getattr(PILImage, "BICUBIC", getattr(PILImage, "NEAREST"))
-        im.thumbnail((256, 256), resample_method)
-
-        im.save(DST)
 
         pyxel.init(self.WINDOW_WIDTH, self.WINDOW_HEIGHT, title = self.WINDOW_TITLE, fps = 60, quit_key = False) # initializes Pyxel and creates the window
-        pyxel.images[0].load(0, 0, str(DST)) #puts the game over image in Pyxel's image bank 0 at the coordinates (0, 0)
+        pyxel.images[0].load(0, 0, str(SRC)) #puts the game over image in Pyxel's image bank 0 at the coordinates (0, 0)
 
         self.GAME_OVER_W, self.GAME_OVER_H = im.size #gets the size of the image
 
