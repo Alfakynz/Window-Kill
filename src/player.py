@@ -127,9 +127,9 @@ class Player(Character):
             amount (int): The amount of xp to add.
         """
 
-        print("before", self.xp)
+        #print("before", self.xp)
         self.xp += amount
-        print("after", self.xp)
+        #print("after", self.xp)
 
     def update(self, enemies_array: list[Enemy], enemies_size: int, enemies_attack: int, window_width: int, window_height: int) -> None:
         """
